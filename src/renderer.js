@@ -9,103 +9,83 @@ class Renderer {
   }
 
   async html(url, options = {}) {
-    let page = null;
-    try {
-      const { timeout, waitUntil, credentials } = options;
-      page = await this.createPage(url, { timeout, waitUntil, credentials });
-      const html = await page.content();
-      return html;
-    } finally {
-      this.closePage(page);
-    }
+    const { timeout, waitUntil, credentials } = options;
+    const page = await this.createPage(url, { timeout, waitUntil, credentials });
+    return await page.content();
   }
 
   async pdf(url, options = {}) {
-    let page = null;
-    try {
-      const {
-        timeout,
-        waitUntil,
-        credentials,
-        emulateMedia,
-        ...extraOptions
-      } = options;
-      page = await this.createPage(url, {
-        timeout,
-        waitUntil,
-        credentials,
-        emulateMedia: emulateMedia || "print",
-      });
+    const {
+      timeout,
+      waitUntil,
+      credentials,
+      emulateMedia,
+      ...extraOptions
+    } = options;
+    const page = await this.createPage(url, {
+      timeout,
+      waitUntil,
+      credentials,
+      emulateMedia: emulateMedia || "print",
+    });
 
-      const {
-        scale = 1.0,
-        displayHeaderFooter,
-        printBackground,
-        landscape,
-      } = extraOptions;
-      const buffer = await page.pdf({
-        ...extraOptions,
-        scale: Number(scale),
-        displayHeaderFooter: displayHeaderFooter === "true",
-        printBackground: printBackground === "true",
-        landscape: landscape === "true",
-      });
-      return buffer;
-    } finally {
-      this.closePage(page);
-    }
+    const {
+      scale = 1.0,
+      displayHeaderFooter,
+      printBackground,
+      landscape,
+    } = extraOptions;
+    return await page.pdf({
+      ...extraOptions,
+      scale: Number(scale),
+      displayHeaderFooter: displayHeaderFooter === "true",
+      printBackground: printBackground === "true",
+      landscape: landscape === "true",
+    });
   }
 
   async screenshot(url, options = {}) {
-    let page = null;
-    try {
-      const { timeout, waitUntil, credentials, ...extraOptions } = options;
-      page = await this.createPage(url, { timeout, waitUntil, credentials });
-      page.setViewport({
-        width: Number(extraOptions.width || 800),
-        height: Number(extraOptions.height || 600),
-      });
+    const { timeout, waitUntil, credentials, ...extraOptions } = options;
+    const page = await this.createPage(url, { timeout, waitUntil, credentials });
+    page.setViewport({
+      width: Number(extraOptions.width || 800),
+      height: Number(extraOptions.height || 600),
+    });
 
-      const {
-        fullPage,
-        omitBackground,
-        screenshotType,
-        quality,
-        ...restOptions
-      } = extraOptions;
-      let screenshotOptions = {
-        ...restOptions,
-        type: screenshotType || "png",
-        quality:
-          Number(quality) ||
-          (screenshotType === undefined || screenshotType === "png" ? 0 : 100),
-        fullPage: fullPage === "true",
-        omitBackground: omitBackground === "true",
-      };
+    const {
+      fullPage,
+      omitBackground,
+      screenshotType,
+      quality,
+      ...restOptions
+    } = extraOptions;
+    let screenshotOptions = {
+      ...restOptions,
+      type: screenshotType || "png",
+      quality:
+        Number(quality) ||
+        (screenshotType === undefined || screenshotType === "png" ? 0 : 100),
+      fullPage: fullPage === "true",
+      omitBackground: omitBackground === "true",
+    };
 
-      const animationTimeout = Number(options.animationTimeout || 0);
-      if (animationTimeout > 0) {
-        await waitForAnimations(page, screenshotOptions, animationTimeout);
-      }
-
-      const buffer = await page.screenshot(screenshotOptions);
-      return {
-        screenshotType,
-        buffer,
-      };
+    const animationTimeout = Number(options.animationTimeout || 0);
+    if (animationTimeout > 0) {
+      await waitForAnimations(page, screenshotOptions, animationTimeout);
     }
-    finally {
-      this.closePage(page);
-    }
+
+    return {
+      screenshotType,
+      buffer: await page.screenshot(screenshotOptions),
+    };
   }
 
   async createPage(url, options = {}) {
     const { timeout, waitUntil, credentials, emulateMedia } = options;
     const page = await this.browser.newPage();
 
-    page.on('error', async (error) => {
-      console.error(error);
-      await this.closePage(page);
+    page.on('error', (error) => {
+      console.trace(error);
     });
 
     if (emulateMedia) {
@@ -123,22 +103,17 @@ class Renderer {
     return page;
   }
 
-  async closePage(page) {
-      try {
-        if (page && !page.isClosed()) {
-          await page.close();
-        }
-      } catch (e) {}
-  }
-
-  async close() {
-    await this.browser.close();
+  destroy() {
+    return this.browser.close();
   }
 }
 
-async function create(options = {}) {
+async function create() {
   const browser = await puppeteer.launch(
-    Object.assign({ args: ["--no-sandbox"] }, options)
+    {
+      ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS,
+      args: ['--no-sandbox']
+    }
   );
   return new Renderer(browser);
 }

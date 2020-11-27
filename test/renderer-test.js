@@ -15,7 +15,7 @@ before(async function () {
 })
 
 after(async function () {
-  await renderer.close()
+  await renderer.destroy()
 })
 
 describe('Renderer', function () {

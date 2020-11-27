@@ -10,8 +10,6 @@ const port = process.env.PORT || 3000;
 
 const app = express();
 
-let renderer = null;
-
 // Configure.
 app.set("query parser", (s) => qs.parse(s, { allowDots: true }));
 app.disable("x-powered-by");
@@ -23,12 +21,14 @@ app.use(async (req, res, next) => {
   if (!url) {
     return res
       .status(400)
-      .send("Search with url parameter. For eaxample, ?url=http://yourdomain");
+      .send("Search with url parameter. For example, ?url=http://yourdomain");
   }
 
   if (!url.includes("://")) {
     url = `http://${url}`;
   }
+
+  const renderer = await createRenderer();
 
   try {
     switch (type) {
@@ -79,6 +79,8 @@ app.use(async (req, res, next) => {
     }
   } catch (e) {
     next(e);
+  } finally {
+    await renderer.destroy()
   }
 });
 
@@ -88,21 +90,10 @@ app.use((err, req, res, next) => {
   res.status(500).send("Oops, An expected error seems to have occurred.");
 });
 
-// Create renderer and start server.
-createRenderer({
-  ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS,
-})
-  .then((createdRenderer) => {
-    renderer = createdRenderer;
-    console.info("Initialized renderer.");
-
-    app.listen(port, () => {
-      console.info(`Listen port on ${port}.`);
-    });
-  })
-  .catch((e) => {
-    console.error("Fail to initialze renderer.", e);
-  });
+// Start server.
+app.listen(port, () => {
+  console.info(`Listen port on ${port}.`);
+});
 
 // Terminate process
 process.on("SIGINT", () => {
